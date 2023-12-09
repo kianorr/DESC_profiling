@@ -1,13 +1,18 @@
 import jax
 import jax.numpy as jnp
-from jax.scipy.special import gammaln
+# from jax import custom_jvp
 from jax.lax import fori_loop
-from jax import custom_jvp
+from jax.scipy.special import gammaln
 
 import numpy as np
 import functools
 from abc import ABC, abstractmethod
 
+def custom_jvp(fun, *args, **kwargs):
+    """Dummy function for custom_jvp without JAX."""
+    fun.defjvp = lambda *args, **kwargs: None
+    fun.defjvps = lambda *args, **kwargs: None
+    return fun
 
 class _Basis(ABC):
     """Basis is an abstract base class for spectral basis sets."""
@@ -763,3 +768,4 @@ def sign(x):
     x = jnp.atleast_1d(x)
     y = jnp.where(x == 0, 1, jnp.sign(x))
     return y
+
