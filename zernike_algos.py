@@ -516,10 +516,8 @@ def zernike_radial(r, l, m, dr=0):
 def zernike_radial_optimized(r, l, m, dr=0):
     """Radial part of zernike polynomials.
 
-    Evaluates basis functions using JAX and a stable
-    evaluation scheme based on jacobi polynomials and
-    binomial coefficients. Generally faster for L>24
-    and differentiable, but slower for low resolution.
+    This will be optimized version of the Jacobi iterations.
+    Please change the description when the method is updated.
 
     Parameters
     ----------
