@@ -7,7 +7,6 @@ from jax import custom_jvp
 import numpy as np
 import functools
 from abc import ABC, abstractmethod
-from math import factorial
 
 
 class _Basis(ABC):
@@ -436,6 +435,85 @@ class ZernikePolynomial(_Basis):
             
 @functools.partial(jax.jit, static_argnums=3)
 def zernike_radial(r, l, m, dr=0):
+    """Radial part of zernike polynomials.
+
+    Evaluates basis functions using JAX and a stable
+    evaluation scheme based on jacobi polynomials and
+    binomial coefficients. Generally faster for L>24
+    and differentiable, but slower for low resolution.
+
+    Parameters
+    ----------
+    r : ndarray, shape(N,)
+        radial coordinates to evaluate basis
+    l : ndarray of int, shape(K,)
+        radial mode number(s)
+    m : ndarray of int, shape(K,)
+        azimuthal mode number(s)
+    dr : int
+        order of derivative (Default = 0)
+
+    Returns
+    -------
+    y : ndarray, shape(N,K)
+        basis function(s) evaluated at specified points
+
+    """
+    m = jnp.abs(m)
+    alpha = m
+    beta = 0
+    n = (l - m) // 2
+    s = (-1) ** n
+    jacobi_arg = 1 - 2 * r**2
+    if dr == 0:
+        out = r**m * _jacobi(n, alpha, beta, jacobi_arg, 0)
+    elif dr == 1:
+        f = _jacobi(n, alpha, beta, jacobi_arg, 0)
+        df = _jacobi(n, alpha, beta, jacobi_arg, 1)
+        out = m * r ** jnp.maximum(m - 1, 0) * f - 4 * r ** (m + 1) * df
+    elif dr == 2:
+        f = _jacobi(n, alpha, beta, jacobi_arg, 0)
+        df = _jacobi(n, alpha, beta, jacobi_arg, 1)
+        d2f = _jacobi(n, alpha, beta, jacobi_arg, 2)
+        out = (
+            (m - 1) * m * r ** jnp.maximum(m - 2, 0) * f
+            - 4 * (2 * m + 1) * r**m * df
+            + 16 * r ** (m + 2) * d2f
+        )
+    elif dr == 3:
+        f = _jacobi(n, alpha, beta, jacobi_arg, 0)
+        df = _jacobi(n, alpha, beta, jacobi_arg, 1)
+        d2f = _jacobi(n, alpha, beta, jacobi_arg, 2)
+        d3f = _jacobi(n, alpha, beta, jacobi_arg, 3)
+        out = (
+            (m - 2) * (m - 1) * m * r ** jnp.maximum(m - 3, 0) * f
+            - 12 * m**2 * r ** jnp.maximum(m - 1, 0) * df
+            + 48 * (m + 1) * r ** (m + 1) * d2f
+            - 64 * r ** (m + 3) * d3f
+        )
+    elif dr == 4:
+        f = _jacobi(n, alpha, beta, jacobi_arg, 0)
+        df = _jacobi(n, alpha, beta, jacobi_arg, 1)
+        d2f = _jacobi(n, alpha, beta, jacobi_arg, 2)
+        d3f = _jacobi(n, alpha, beta, jacobi_arg, 3)
+        d4f = _jacobi(n, alpha, beta, jacobi_arg, 4)
+        out = (
+            (m - 3) * (m - 2) * (m - 1) * m * r ** jnp.maximum(m - 4, 0) * f
+            - 8 * m * (2 * m**2 - 3 * m + 1) * r ** jnp.maximum(m - 2, 0) * df
+            + 48 * (2 * m**2 + 2 * m + 1) * r**m * d2f
+            - 128 * (2 * m + 3) * r ** (m + 2) * d3f
+            + 256 * r ** (m + 4) * d4f
+        )
+    else:
+        raise NotImplementedError(
+            "Analytic radial derivatives of Zernike polynomials for order>4 "
+            + "have not been implemented."
+        )
+    return s * jnp.where((l - m) % 2 == 0, out, 0)
+
+
+@functools.partial(jax.jit, static_argnums=3)
+def zernike_radial_optimized(r, l, m, dr=0):
     """Radial part of zernike polynomials.
 
     Evaluates basis functions using JAX and a stable
