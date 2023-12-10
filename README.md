@@ -1,5 +1,7 @@
 # DESC_profiling
 
+# Need to change the goals
+
 ## Goals
 1. To profile the current performance of DESC for the calculation of a three-dimensional plasma equilibrium using GPUs and CPUs.
 
