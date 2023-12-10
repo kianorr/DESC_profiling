@@ -17,16 +17,6 @@ def custom_jvp(fun, *args, **kwargs):
 class _Basis(ABC):
     """Basis is an abstract base class for spectral basis sets."""
 
-    _io_attrs_ = [
-        "_L",
-        "_M",
-        "_N",
-        "_NFP",
-        "_modes",
-        "_sym",
-        "_spectral_indexing",
-    ]
-
     def __init__(self):
         self._enforce_symmetry()
         self._sort_modes()
@@ -40,8 +30,6 @@ class _Basis(ABC):
 
     def _set_up(self):
         """Do things after loading or changing resolution."""
-        # Also recreates any attributes not in _io_attrs on load from input file.
-        # See IOAble class docstring for more info.
         self._enforce_symmetry()
         self._sort_modes()
         self._create_idx()
