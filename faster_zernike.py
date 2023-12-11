@@ -1,32 +1,73 @@
-from desc.grid import LinearGrid
-import numpy as np
-
-def zernike_radial_direct(r, n):
+# Zernike radial direct computes the Zernike radial polynomials and respective derivatives
+def zernike_radial_direct(r, n, m, dr):
     """Radial part of zernike polynomials. Modified Prata's algorithm."""
-    R = np.zeros((len(n), len(n), len(r)))  # R_nmk
-
-    M = np.max(n)
-    for n_i in range(M):
-
-        R[n_i, n_i] = r ** n_i
-        print(f"{R[n_i, n_i]=}")
-
-        for m_i in range(M, 1, -2):
-            K_1 = 2 * n_i / (m_i + n_i)
-            K_2 = 1 - K_1
-
-            R[n_i, m_i] = r * K_1 * R[n_i - 1, m_i - 1] + K_2 * R[n_i - 2, m_i]
-
-        # covering the case where n is even
-        if n_i % 2 == 0:
-            R[n_i, 0] = 2 * r * R[n_i - 1, 1] - R[n_i - 2, 0]
     
-    return R
+    m = abs(m) # m must be positive
 
-L = 8
-# TODO: add r without desc
-grid = LinearGrid(L=L)
-r = grid.nodes[:, 0]
+    # Define a 3D matrix to save the radial polynomials R_n^m(rho)
+    # and respective deritivatives d^l( R_n^m(rho) )/drho^l
+    # r indicates the value of R_n^m(rho = r)
+    R = np.zeros((len(n), len(m), len(r)))  # R_nmk
 
-l = np.arange(L)
-print(zernike_radial_direct(r, l)[-1])
+    # Generate a matrix if the first derivatives of R are to be computed
+    if dr == 1:
+        d1R = np.zeros((len(n), len(m), len(r)))  # dR_nmk
+
+    # First step: Compute R_n^n using the simple relation R[n,n] = rho^n
+    for n_i in (0, np.max(n)+1):
+        
+        if n_i == 0:
+            R[n_i, n_i] = np.ones(r.size)
+        else:
+            R[n_i, n_i] = r ** n_i
+
+        if dr == 1:
+            if n_i == 0:
+                d1R[n_i, n_i] = np.zeros(r.size)
+            elif n_i == 1:
+                d1R[n_i, n_i] = n_i * np.ones(r.size)
+            else:
+                d1R[n_i, n_i] = n_i * r ** (n_i - 1)
+    
+    # Second step: Compute R[n,0] using the conventional relation for R_n^m(rho)
+    for n_i in (1, np.max(n) + 1):
+        
+        # Right now we are using the non-optimized zernike radial evaluation
+        # When it's ready, we should switch to the optimized version
+        
+        R[n_i, 0] = zernike_radial(r, n_i, 0, 0)
+    
+        if dr == 1:
+            d1R[n_i, 0] = zernike_radial(r, n_i, 0, dr)
+    
+    # Third step: Compute the remaining R_n^m
+    for n_i in (3, np.max(n) + 1):
+
+        for m_i in (1, np.max(m)):
+
+            # There is a condition that dictates when to use the recursive or the direct relation
+            if  n_i < m_i + 2:
+                
+                R[n_i, 0] = zernike_radial(r, n_i, m_i, dr)
+                #out = R
+            
+            elif m_i + 2 <= n_i < m_i:
+
+                K_1 = 2 * n_i / (m_i + n_i)
+                K_2 = 1 - K_1
+                
+                R[n_i, m_i] = r * K_1 * R[n_i - 1, m_i - 1] + K_2 * R[n_i - 2, m_i]
+            
+                if dr == 1:
+                    # Recursive relation
+                    d1R[n_i, m_i] = (K_1 * R[n_i - 1, m_i - 1]
+                                     + r * K_1 * d1R[n_i - 1, m_i - 1]
+                                     + K_2 * d1R[n_i - 2, m_i])
+    
+        # Define the output depending on the derivative desired
+        if dr == 0:
+            out = R
+        elif dr == 1:
+            out = d1R
+
+    return out
