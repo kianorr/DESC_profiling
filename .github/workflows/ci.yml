@@ -1,7 +1,7 @@
 on:
   push:
     branches:
-      - tests_workflow
+      - main
 
 jobs:
   tests:
