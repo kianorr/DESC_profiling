@@ -2,9 +2,11 @@
 
 import functools
 from abc import ABC, abstractmethod
+from math import factorial
 
 import jax
 import jax.numpy as jnp
+import mpmath
 import numpy as np
 import scipy.special
 from jax.lax import fori_loop
@@ -822,3 +824,223 @@ def sign(x):
     x = jnp.atleast_1d(x)
     y = jnp.where(x == 0, 1, jnp.sign(x))
     return y
+
+
+def zernike_radial_coeffs(l, m, exact=True):
+    """Polynomial coefficients for radial part of zernike basis.
+
+    Parameters
+    ----------
+    l : ndarray of int, shape(K,)
+        radial mode number(s)
+    m : ndarray of int, shape(K,)
+        azimuthal mode number(s)
+    exact : bool
+        whether to return exact coefficients with `object` dtype
+        or return integer or floating point approximation
+
+    Returns
+    -------
+    coeffs : ndarray
+        Polynomial coefficients for Zernike polynomials, in descending powers of r.
+
+    Notes
+    -----
+    Integer representation is exact up to l~54, so leaving `exact` arg as False
+    can speed up evaluation with no loss in accuracy
+    """
+    l = np.atleast_1d(l).astype(int)
+    m = np.atleast_1d(np.abs(m)).astype(int)
+    lm = np.vstack([l, m]).T
+    # for modest to large arrays, faster to find unique values and
+    # only evaluate those
+    lms, idx = np.unique(lm, return_inverse=True, axis=0)
+
+    npoly = len(lms)
+    lmax = np.max(lms[:, 0])
+    coeffs = np.zeros((npoly, lmax + 1), dtype=object)
+    lm_even = ((lms[:, 0] - lms[:, 1]) % 2 == 0)[:, np.newaxis]
+    for ii in range(npoly):
+        ll = lms[ii, 0]
+        mm = lms[ii, 1]
+        for s in range(mm, ll + 1, 2):
+            coeffs[ii, s] = (
+                (-1) ** ((ll - s) // 2)
+                * factorial((ll + s) // 2)
+                // (
+                    factorial((ll - s) // 2)
+                    * factorial((s + mm) // 2)
+                    * factorial((s - mm) // 2)
+                )
+            )
+    c = np.fliplr(np.where(lm_even, coeffs, 0))
+    if not exact:
+        try:
+            c = c.astype(int)
+        except OverflowError:
+            c = c.astype(float)
+    c = c[idx]
+    return c
+
+
+def zernike_radial_poly(r, l, m, dr=0, exact="auto"):
+    """Radial part of zernike polynomials.
+
+    Evaluates basis functions using numpy to
+    exactly compute the polynomial coefficients
+    and Horner's method for low resolution,
+    or extended precision arithmetic for high resolution.
+    Faster for low resolution, but not differentiable.
+
+    Parameters
+    ----------
+    r : ndarray, shape(N,)
+        radial coordinates to evaluate basis
+    l : ndarray of int, shape(K,)
+        radial mode number(s)
+    m : ndarray of int, shape(K,)
+        azimuthal mode number(s)
+    dr : int
+        order of derivative (Default = 0)
+    exact : {"auto", True, False}
+        Whether to use exact/extended precision arithmetic. Slower but more accurate.
+        "auto" will use higher accuracy when needed.
+
+    Returns
+    -------
+    y : ndarray, shape(N,K)
+        basis function(s) evaluated at specified points
+
+    """
+    if exact == "auto":
+        exact = np.max(l) > 54
+    if exact:
+        # this should give accuracy of ~1e-10 in the eval'd polynomials
+        lmax = np.max(l)
+        prec = int(0.4 * lmax + 8.4)
+    else:
+        prec = None
+    coeffs = zernike_radial_coeffs(l, m, exact=exact)
+    coeffs = polyder_vec(coeffs, dr, exact=exact)
+    return polyval_vec(coeffs, r, prec=prec).T
+
+
+def polyder_vec(p, m, exact=False):
+    """Vectorized version of polyder.
+
+    For differentiating multiple polynomials of the same degree
+
+    Parameters
+    ----------
+    p : ndarray, shape(N,M)
+        polynomial coefficients. Each row is 1 polynomial, in descending powers of x,
+        each column is a power of x
+    m : int >=0
+        order of derivative
+    exact : bool
+        Whether to use exact integer arithmetic (not compatible with JAX, but may be
+        needed for very high degree polynomials)
+
+    Returns
+    -------
+    der : ndarray, shape(N,M)
+        polynomial coefficients for derivative in descending order
+
+    """
+    if exact:
+        return _polyder_exact(p, m)
+    else:
+        return _polyder_jax(p, m)
+
+
+def _polyder_exact(p, m):
+    factorial = np.math.factorial
+    m = np.asarray(m, dtype=int)  # order of derivative
+    p = np.atleast_2d(p)
+    order = p.shape[1] - 1
+
+    D = np.arange(order, -1, -1)
+    num = np.array([factorial(i) for i in D], dtype=object)
+    den = np.array([factorial(max(i - m, 0)) for i in D], dtype=object)
+    D = (num // den).astype(p.dtype)
+
+    p = np.roll(D * p, m, axis=1)
+    idx = np.arange(p.shape[1])
+    p = np.where(idx < m, 0, p)
+    return p
+
+
+@jax.jit
+def _polyder_jax(p, m):
+    p = jnp.atleast_2d(p)
+    m = jnp.asarray(m).astype(int)
+    order = p.shape[1] - 1
+    D = jnp.arange(order, -1, -1)
+
+    def body(i, Di):
+        return Di * jnp.maximum(D - i, 1)
+
+    D = fori_loop(0, m, body, jnp.ones_like(D))
+
+    p = jnp.roll(D * p, m, axis=1)
+    idx = jnp.arange(p.shape[1])
+    p = jnp.where(idx < m, 0, p)
+
+    return p
+
+
+def polyval_vec(p, x, prec=None):
+    """Evaluate a polynomial at specific values.
+
+    Vectorized for evaluating multiple polynomials of the same degree.
+
+    Parameters
+    ----------
+    p : ndarray, shape(N,M)
+        Array of coefficient for N polynomials of order M.
+        Each row is one polynomial, given in descending powers of x.
+    x : ndarray, shape(K,)
+        A number, or 1d array of numbers at
+        which to evaluate p. If greater than 1d it is flattened.
+    prec : int, optional
+        precision to use, in number of decimal places. Default is
+        double precision (~16 decimals) which should be enough for
+        most cases with L <= 24
+
+    Returns
+    -------
+    y : ndarray, shape(N,K)
+        polynomials evaluated at x.
+        Each row corresponds to a polynomial, each column to a value of x
+
+    """
+    if prec is not None and prec > 18:
+        return _polyval_exact(p, x, prec)
+    else:
+        return _polyval_jax(p, x)
+
+
+def _polyval_exact(p, x, prec):
+    p = np.atleast_2d(p)
+    x = np.atleast_1d(x).flatten()
+    # TODO: possibly multithread this bit
+    mpmath.mp.dps = prec
+    y = np.array([np.asarray(mpmath.polyval(list(pi), x)) for pi in p])
+    return y.astype(float)
+
+
+@jax.jit
+def _polyval_jax(p, x):
+    p = jnp.atleast_2d(p)
+    x = jnp.atleast_1d(x).flatten()
+    npoly = p.shape[0]  # number of polynomials
+    order = p.shape[1]  # order of polynomials
+    nx = len(x)  # number of coordinates
+    y = jnp.zeros((npoly, nx))
+
+    def body(k, y):
+        return y * x + jnp.atleast_2d(p[:, k]).T
+
+    y = fori_loop(0, order, body, y)
+
+    return y.astype(float)
