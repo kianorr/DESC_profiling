@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+
 # from jax import custom_jvp
 from jax.lax import fori_loop
 from jax.scipy.special import gammaln
@@ -8,11 +9,13 @@ import numpy as np
 import functools
 from abc import ABC, abstractmethod
 
+
 def custom_jvp(fun, *args, **kwargs):
     """Dummy function for custom_jvp without JAX."""
     fun.defjvp = lambda *args, **kwargs: None
     fun.defjvps = lambda *args, **kwargs: None
     return fun
+
 
 class _Basis(ABC):
     """Basis is an abstract base class for spectral basis sets."""
@@ -226,8 +229,8 @@ class _Basis(ABC):
                 self.L, self.M, self.N, self.NFP, self.sym, self.spectral_indexing
             )
         )
-        
-        
+
+
 class ZernikePolynomial(_Basis):
     """2D basis set for analytic functions in a unit disc.
 
@@ -436,8 +439,8 @@ class ZernikePolynomial(_Basis):
                 self.L, self.M, spectral_indexing=self.spectral_indexing
             )
             self._set_up()
-            
-            
+
+
 @functools.partial(jax.jit, static_argnums=3)
 def zernike_radial(r, l, m, dr=0):
     """Radial part of zernike polynomials.
@@ -661,7 +664,6 @@ def _jacobi(n, alpha, beta, x, dx=0):
     return c * out
 
 
-
 def flatten_list(x, flatten_tuple=False):
     """Flatten a nested list.
 
@@ -768,4 +770,3 @@ def sign(x):
     x = jnp.atleast_1d(x)
     y = jnp.where(x == 0, 1, jnp.sign(x))
     return y
-
