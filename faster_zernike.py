@@ -3,6 +3,23 @@ import numpy as np
 from desc.grid import LinearGrid
 
 
+def zernike_direct_eval(r, n, m):
+    """Directly evaluates zernike."""
+    factorial = np.math.factorial
+    R_nm = np.zeros((n - m) / 2)
+    for k in range((n - m) / 2):
+        R_nmk = (
+            (-1) ** ((n - k) / 2)
+            * factorial((n + k) / 2)
+            / factorial((n - k) / 2)
+            * factorial((k + abs(m)) / 2)
+            * factorial((k - abs(m)) / 2)
+        )
+
+        R_nm += R_nmk * r**k
+    return R_nm
+
+
 def zernike_radial_singh(r, n):
     """Radial part of zernike polynomials. Modified Prata's algorithm."""
     R = np.full((len(n), len(n), len(r)), np.nan)
