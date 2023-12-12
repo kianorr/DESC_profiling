@@ -1,28 +1,22 @@
 """zernike algorithms."""
 import numpy as np
-from desc.grid import LinearGrid
+import matplotlib.pyplot as plt
 
 
-def zernike_direct_eval(r, n, m):
-    """Directly evaluates zernike."""
-    factorial = np.math.factorial
-    R_nm = np.zeros((n - m) / 2)
-    for k in range((n - m) / 2):
-        R_nmk = (
-            (-1) ** ((n - k) / 2)
-            * factorial((n + k) / 2)
-            / factorial((n - k) / 2)
-            * factorial((k + abs(m)) / 2)
-            * factorial((k - abs(m)) / 2)
-        )
+def zernike_direct_eval(r):
+    """Directly evaluates zernike.
 
-        R_nm += R_nmk * r**k
-    return R_nm
+    From https://en.wikipedia.org/wiki/Zernike_polynomials#Radial_polynomials
+    """
+    R = {}
+    R["42"] = 4 * r**4 - 3 * r**2
+    R["31"] = 3 * r**3 - 2 * r
+    return R
 
 
 def zernike_radial_singh(r, n):
     """Radial part of zernike polynomials. Modified Prata's algorithm."""
-    R = np.full((len(n), len(n), len(r)), np.nan)
+    R = np.ones((len(n), len(n), len(r))) * np.nan
 
     n_max = np.max(n)
     for n_i in range(n_max):
@@ -41,11 +35,17 @@ def zernike_radial_singh(r, n):
     return R
 
 
-L = 8
-M = 8
-# TODO: add r without desc
-grid = LinearGrid(L=L, M=M)
-r = grid.nodes[:, 0]
+def plot_zernike(r, l, m):
+    """Plot radial zernike with respect to radii."""
+    algo = zernike_radial_singh(r, l)[l, m]
+    direct = zernike_direct_eval(r)
+    plt.plot(r, algo)
+    plt.plot(r, direct)
+    plt.show()
 
-_l = np.arange(L) + 1
-print(zernike_radial_singh(r, _l)[7, 5])
+
+l = np.arange(0, 8)
+r = np.linspace(0, 1, 20)
+algo = zernike_radial_singh(r, l)[3, 1]
+direct = zernike_direct_eval(r)
+plot_zernike(r, 4, 2)
