@@ -8,7 +8,7 @@ name = "zernike-algorithm"
 version = "0.0.1"
 
 [project.optional-dependencies]
-test = ["pytest", "uncertainties"]
+test = ["pytest"]
 
 [tool.ruff]
 select = ["E", "F", "W", "B", "I", "RUF", "UP"]
