@@ -1,12 +1,14 @@
+"""Classes and functions to be used for Zernike polynomial application."""
+
+import functools
+from abc import ABC, abstractmethod
+
 import jax
 import jax.numpy as jnp
-# from jax import custom_jvp
+import numpy as np
 from jax.lax import fori_loop
 from jax.scipy.special import gammaln
 
-import numpy as np
-import functools
-from abc import ABC, abstractmethod
 
 def custom_jvp(fun, *args, **kwargs):
     """Dummy function for custom_jvp without JAX."""
@@ -14,18 +16,9 @@ def custom_jvp(fun, *args, **kwargs):
     fun.defjvps = lambda *args, **kwargs: None
     return fun
 
+
 class _Basis(ABC):
     """Basis is an abstract base class for spectral basis sets."""
-
-    _io_attrs_ = [
-        "_L",
-        "_M",
-        "_N",
-        "_NFP",
-        "_modes",
-        "_sym",
-        "_spectral_indexing",
-    ]
 
     def __init__(self):
         self._enforce_symmetry()
@@ -40,8 +33,6 @@ class _Basis(ABC):
 
     def _set_up(self):
         """Do things after loading or changing resolution."""
-        # Also recreates any attributes not in _io_attrs on load from input file.
-        # See IOAble class docstring for more info.
         self._enforce_symmetry()
         self._sort_modes()
         self._create_idx()
@@ -226,8 +217,8 @@ class _Basis(ABC):
                 self.L, self.M, self.N, self.NFP, self.sym, self.spectral_indexing
             )
         )
-        
-        
+
+
 class ZernikePolynomial(_Basis):
     """2D basis set for analytic functions in a unit disc.
 
@@ -436,8 +427,8 @@ class ZernikePolynomial(_Basis):
                 self.L, self.M, spectral_indexing=self.spectral_indexing
             )
             self._set_up()
-            
-            
+
+
 @functools.partial(jax.jit, static_argnums=3)
 def zernike_radial(r, l, m, dr=0):
     """Radial part of zernike polynomials.
@@ -661,7 +652,6 @@ def _jacobi(n, alpha, beta, x, dx=0):
     return c * out
 
 
-
 def flatten_list(x, flatten_tuple=False):
     """Flatten a nested list.
 
@@ -768,4 +758,3 @@ def sign(x):
     x = jnp.atleast_1d(x)
     y = jnp.where(x == 0, 1, jnp.sign(x))
     return y
-
