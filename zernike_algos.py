@@ -624,15 +624,18 @@ def zernike_radial_optimized(x, l, m, beta=0):
     m_opt = opt_param[:, 0]
     n_opt = opt_param[:, 1]
 
+    # if we use JAX in future, this might becoma handy
+    init = np.zeros((len(m), len(x)))
+
     # Broadcasting is used for element-wise operations
-    result = zernike_radial_update(x, n_opt, m_opt, beta)
+    result = zernike_radial_update(x, n_opt, m_opt, beta, init)
     result = np.where((l - m) % 2 == 0, result, 0)
     result = result[:, np.argsort(id0)]
 
     return result
 
 
-def zernike_radial_update(x, n, alpha, beta):
+def zernike_radial_update(x, n, alpha, beta, result):
     """Calculate the radial part of Zernike polynomial at points x.
 
     Parameters
@@ -652,22 +655,25 @@ def zernike_radial_update(x, n, alpha, beta):
         Values of the Zernike polynomial at points x.
 
     """
-    result = []
     xj = 1 - 2 * x**2
+    index = 0
     for i in range(len(alpha)):
         P_n1 = jacobi_poly_single(xj, 1, alpha[i], beta)
         P_n2 = jacobi_poly_single(xj, 0, alpha[i], beta)
         power = x ** alpha[i]
-        result.append(np.array((-1) ** 0 * power * P_n2))
+        result[index, :] = np.array((-1) ** 0 * power * P_n2)
+        index += 1
         if n[i] >= 1:
-            result.append(np.array((-1) ** 1 * power * P_n1))
+            result[index, :] = np.array((-1) ** 1 * power * P_n1)
+            index += 1
         if n[i] >= 2:
             for N in range(2, n[i] + 1):
                 P_n = jacobi_poly_single(xj, N, alpha[i], beta, P_n1, P_n2)
-                result.append(np.array((-1) ** N * power * P_n))
+                result[index, :] = np.array((-1) ** N * power * P_n)
+                index += 1
                 P_n2 = P_n1
                 P_n1 = P_n
-    return np.transpose(np.array(result))
+    return np.transpose(result)
 
 
 def jacobi_poly_single(x, n, alpha, beta, P_n1=0, P_n2=0):
