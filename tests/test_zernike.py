@@ -1,10 +1,6 @@
 """Tests for zernike."""
 import numpy as np
-import sys
-import os
 
-# path = os.path.dirname(os.path.abspath(__file__))
-# sys.path.append(path + "/../")
 from ..faster_zernike import zernike_radial_singh, zernike_direct_eval
 
 
