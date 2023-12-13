@@ -1,7 +1,7 @@
 """Tests for zernike."""
 import numpy as np
 
-from ..faster_zernike import zernike_radial_singh, zernike_direct_eval
+from ..faster_zernike import zernike_direct_eval, zernike_radial_singh
 
 
 def test_zernike_eval():

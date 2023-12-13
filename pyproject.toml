@@ -12,3 +12,4 @@ tests = ["pytest"]
 
 [tool.ruff]
 select = ["E", "F", "W", "B", "I", "RUF", "UP"]
+ignore = ["E741"]
