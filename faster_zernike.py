@@ -2,6 +2,10 @@
 from abc import ABC, abstractmethod
 
 import numpy as np
+from numpy.typing import NDArray
+
+FArray = NDArray[np.float64]
+IArray = NDArray[np.int8]
 
 
 class _PratasMethod(ABC):
@@ -18,7 +22,7 @@ class _PratasMethod(ABC):
 
     def __init__(self):
         """Init for base class."""
-        # TODO: add l, m as attributes
+        # TODO: add r, l as attributes
         self.R = {}
         self.R[0] = None
         self.R[1] = None
@@ -50,20 +54,30 @@ class _PratasMethod(ABC):
         K_2: `float`
             A constant
         r: `np.ndarray`
-            array of radii on the unit disc
+            array of radii (floats) on the unit disc
+        l_i: `int`
+            l mode
+        m_i: `int`
+            m modes
+        dr: `int`
+            derivative order
         """
+        assert isinstance(dr, int), "derivative order is an integer."
         # if else covering case where -1 becomes index
         term_1 = dr * K_1 * self.R[dr - 1][l_i + m_i - 1, abs(m_i - 1)] if dr > 0 else 0
         term_2 = K_1 * r * self.R[dr][l_i + m_i - 1, abs(m_i - 1)]
         term_3 = K_2 * self.R[dr][l_i + m_i - 2, m_i]
         self.R[dr][l_i + m_i, m_i] = term_1 + term_2 + term_3
 
-    def zernike_radial_prata(self, r, n):
+    def zernike_radial_prata(self, r, l):
         """Radial part of zernike polynomials. Modified Prata's algorithm."""
-        for dr in self.R.keys():
-            self.R[dr] = np.ones((len(n), len(n), len(r))) * np.nan
+        assert isinstance(r, np.ndarray), "r is an array."
+        assert isinstance(l, np.ndarray), "l is an array."
 
-        n_max = np.max(n)
+        for dr in self.R.keys():
+            self.R[dr] = np.ones((len(l), len(l), len(r))) * np.nan
+
+        n_max = np.max(l)
         for l_i in range(n_max):
             self.initial_condition(r, l_i)
 
@@ -90,7 +104,8 @@ class ZerothDerivative(_PratasMethod):
         """Calculates main recurring with specification of derivative."""
         super().calc_main_recurrence(K_1, K_2, r, l_i, m_i, dr=0)
 
-    def zernike_radial_analytical(self, r):
+    @staticmethod
+    def zernike_radial_analytical(r):
         """Calculate analytical expression for 0th derivative.
 
         From https://en.wikipedia.org/wiki/Zernike_polynomials#Radial_polynomials
@@ -121,7 +136,8 @@ class FirstDerivative(ZerothDerivative):
         super().main_recurrence(K_1, K_2, r, l_i, m_i)
         super().calc_main_recurrence(K_1, K_2, r, l_i, m_i, dr=1)
 
-    def zernike_radial_analytical(self, r):
+    @staticmethod
+    def zernike_radial_analytical(r):
         """Calculate analytical expression for 3rd derivative."""
         R = {}
         R["42"] = 16 * r**3 - 6 * r
@@ -149,7 +165,8 @@ class SecondDerivative(FirstDerivative):
         super().main_recurrence(K_1, K_2, r, l_i, m_i)
         super().calc_main_recurrence(K_1, K_2, r, l_i, m_i, dr=2)
 
-    def zernike_radial_analytical(self, r):
+    @staticmethod
+    def zernike_radial_analytical(r):
         """Calculate analytical expression for 2nd derivative."""
         R = {}
         R["42"] = 48 * r**2 - 6
@@ -177,7 +194,8 @@ class ThirdDerivative(SecondDerivative):
         super().main_recurrence(K_1, K_2, r, l_i, m_i)
         super().calc_main_recurrence(K_1, K_2, r, l_i, m_i, dr=3)
 
-    def zernike_radial_analytical(self, r):
+    @staticmethod
+    def zernike_radial_analytical(r):
         """Calculate analytical expression for 3rd derivative."""
         R = {}
         R["42"] = 96 * r
@@ -205,7 +223,8 @@ class FourthDerivative(ThirdDerivative):
         super().main_recurrence(K_1, K_2, r, l_i, m_i)
         super().calc_main_recurrence(K_1, K_2, r, l_i, m_i, dr=4)
 
-    def zernike_radial_analytical(self, r):
+    @staticmethod
+    def zernike_radial_analytical(r):
         """Calculate analytical expression for 4th derivative."""
         R = {}
         R["42"] = 96
