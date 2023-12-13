@@ -2,5 +2,5 @@
 
 
 def test_zernike_eval():
-    """Test zernike."""
+    """Test zernike. Test."""
     assert 1 == 1
