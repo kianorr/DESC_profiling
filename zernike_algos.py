@@ -2,9 +2,11 @@
 
 import functools
 from abc import ABC, abstractmethod
+from math import factorial
 
 import jax
 import jax.numpy as jnp
+import mpmath
 import numpy as np
 from jax.lax import fori_loop
 from jax.scipy.special import gammaln
@@ -508,83 +510,6 @@ def zernike_radial(r, l, m, dr=0):
     return s * jnp.where((l - m) % 2 == 0, out, 0)
 
 
-@functools.partial(jax.jit, static_argnums=3)
-def zernike_radial_optimized(r, l, m, dr=0):
-    """Radial part of zernike polynomials.
-
-    This will be optimized version of the Jacobi iterations.
-    Please change the description when the method is updated.
-
-    Parameters
-    ----------
-    r : ndarray, shape(N,)
-        radial coordinates to evaluate basis
-    l : ndarray of int, shape(K,)
-        radial mode number(s)
-    m : ndarray of int, shape(K,)
-        azimuthal mode number(s)
-    dr : int
-        order of derivative (Default = 0)
-
-    Returns
-    -------
-    y : ndarray, shape(N,K)
-        basis function(s) evaluated at specified points
-
-    """
-    m = jnp.abs(m)
-    alpha = m
-    beta = 0
-    n = (l - m) // 2
-    s = (-1) ** n
-    jacobi_arg = 1 - 2 * r**2
-    if dr == 0:
-        out = r**m * _jacobi(n, alpha, beta, jacobi_arg, 0)
-    elif dr == 1:
-        f = _jacobi(n, alpha, beta, jacobi_arg, 0)
-        df = _jacobi(n, alpha, beta, jacobi_arg, 1)
-        out = m * r ** jnp.maximum(m - 1, 0) * f - 4 * r ** (m + 1) * df
-    elif dr == 2:
-        f = _jacobi(n, alpha, beta, jacobi_arg, 0)
-        df = _jacobi(n, alpha, beta, jacobi_arg, 1)
-        d2f = _jacobi(n, alpha, beta, jacobi_arg, 2)
-        out = (
-            (m - 1) * m * r ** jnp.maximum(m - 2, 0) * f
-            - 4 * (2 * m + 1) * r**m * df
-            + 16 * r ** (m + 2) * d2f
-        )
-    elif dr == 3:
-        f = _jacobi(n, alpha, beta, jacobi_arg, 0)
-        df = _jacobi(n, alpha, beta, jacobi_arg, 1)
-        d2f = _jacobi(n, alpha, beta, jacobi_arg, 2)
-        d3f = _jacobi(n, alpha, beta, jacobi_arg, 3)
-        out = (
-            (m - 2) * (m - 1) * m * r ** jnp.maximum(m - 3, 0) * f
-            - 12 * m**2 * r ** jnp.maximum(m - 1, 0) * df
-            + 48 * (m + 1) * r ** (m + 1) * d2f
-            - 64 * r ** (m + 3) * d3f
-        )
-    elif dr == 4:
-        f = _jacobi(n, alpha, beta, jacobi_arg, 0)
-        df = _jacobi(n, alpha, beta, jacobi_arg, 1)
-        d2f = _jacobi(n, alpha, beta, jacobi_arg, 2)
-        d3f = _jacobi(n, alpha, beta, jacobi_arg, 3)
-        d4f = _jacobi(n, alpha, beta, jacobi_arg, 4)
-        out = (
-            (m - 3) * (m - 2) * (m - 1) * m * r ** jnp.maximum(m - 4, 0) * f
-            - 8 * m * (2 * m**2 - 3 * m + 1) * r ** jnp.maximum(m - 2, 0) * df
-            + 48 * (2 * m**2 + 2 * m + 1) * r**m * d2f
-            - 128 * (2 * m + 3) * r ** (m + 2) * d3f
-            + 256 * r ** (m + 4) * d4f
-        )
-    else:
-        raise NotImplementedError(
-            "Analytic radial derivatives of Zernike polynomials for order>4 "
-            + "have not been implemented."
-        )
-    return s * jnp.where((l - m) % 2 == 0, out, 0)
-
-
 @custom_jvp
 @jax.jit
 @jnp.vectorize
@@ -650,6 +575,122 @@ def _jacobi(n, alpha, beta, x, dx=0):
     out = jnp.where(n == 0, 1.0, out)
     out = jnp.where(n == 1, 0.5 * (2 * (alpha + 1) + (alpha + beta + 2) * (x - 1)), out)
     return c * out
+
+
+def zernike_radial_optimized(x, l, m, beta=0):
+    """Radial part of zernike polynomials.
+
+    Evaluates basis functions using JAX and a stable
+    evaluation scheme based on jacobi polynomials and
+    binomial coefficients. Generally faster for L>24
+    and differentiable, but slower for low resolution.
+
+    Parameters
+    ----------
+    r : ndarray, shape(N,)
+        radial coordinates to evaluate basis
+    l : ndarray of int, shape(K,)
+        radial mode number(s)
+    m : ndarray of int, shape(K,)
+        azimuthal mode number(s)
+    dr : int
+        order of derivative (Default = 0)
+
+    Returns
+    -------
+    y : ndarray, shape(N,K)
+        basis function(s) evaluated at specified points
+
+    """
+    m = np.abs(m)
+    n = (l - m) // 2
+    idx = np.lexsort((n, m))
+    id0 = np.arange(0, len(l))
+    id0 = id0[idx]
+
+    l = l[idx]
+    m = m[idx]
+    n = n[idx]
+
+    unique_values = np.unique(m)
+    opt_param = []
+    # For each unique value, find the maximum value in array2 where
+    # this value occurs in array1
+    for value in unique_values:
+        indices = np.where(m == value)
+        max_n = np.max(n[indices])
+        opt_param.append(np.array([value, max_n]))
+    opt_param = np.array(opt_param)
+    m_opt = opt_param[:, 0]
+    n_opt = opt_param[:, 1]
+
+    # if we use JAX in future, this might becoma handy
+    init = np.zeros((len(m), len(x)))
+
+    # Broadcasting is used for element-wise operations
+    result = zernike_radial_update(x, n_opt, m_opt, beta, init)
+    result = np.where((l - m) % 2 == 0, result, 0)
+    result = result[:, np.argsort(id0)]
+
+    return result
+
+
+def zernike_radial_update(x, n, alpha, beta, result):
+    """Calculate the radial part of Zernike polynomial at points x.
+
+    Parameters
+    ----------
+    x : array-like
+        Points where the Jacobi polynomial is evaluated.
+    n : array-like
+        Degree of the Jacobi polynomial.
+    alpha : array-like
+        Alpha parameter of the Jacobi polynomial.
+    beta : array-like
+        Beta parameter of the Jacobi polynomial.
+
+    Returns
+    -------
+    result : array
+        Values of the Zernike polynomial at points x.
+
+    """
+    xj = 1 - 2 * x**2
+    index = 0
+    for i in range(len(alpha)):
+        P_n1 = jacobi_poly_single(xj, 1, alpha[i], beta)
+        P_n2 = jacobi_poly_single(xj, 0, alpha[i], beta)
+        power = x ** alpha[i]
+        result[index, :] = np.array((-1) ** 0 * power * P_n2)
+        index += 1
+        if n[i] >= 1:
+            result[index, :] = np.array((-1) ** 1 * power * P_n1)
+            index += 1
+        if n[i] >= 2:
+            for N in range(2, n[i] + 1):
+                P_n = jacobi_poly_single(xj, N, alpha[i], beta, P_n1, P_n2)
+                result[index, :] = np.array((-1) ** N * power * P_n)
+                index += 1
+                P_n2 = P_n1
+                P_n1 = P_n
+    return np.transpose(result)
+
+
+def jacobi_poly_single(x, n, alpha, beta, P_n1=0, P_n2=0):
+    """Evaluate Jacobi for single alpha and n pair."""
+    if n == 0:
+        return np.ones_like(x)
+    elif n == 1:
+        return (alpha + 1) + (alpha + beta + 2) * (x - 1) / 2
+    else:
+        c = 2 * n + alpha + beta
+        a1 = 2 * n * (c - n) * (c - 2)
+        a2 = (c - 1) * (c * (c - 2) * x + (alpha - beta) * (alpha + beta))
+        a3 = 2 * (n + alpha - 1) * (n + beta - 1) * c
+
+        P_n = (a2 * P_n1 - a3 * P_n2) / a1
+
+        return P_n
 
 
 def flatten_list(x, flatten_tuple=False):
@@ -758,3 +799,223 @@ def sign(x):
     x = jnp.atleast_1d(x)
     y = jnp.where(x == 0, 1, jnp.sign(x))
     return y
+
+
+def zernike_radial_coeffs(l, m, exact=True):
+    """Polynomial coefficients for radial part of zernike basis.
+
+    Parameters
+    ----------
+    l : ndarray of int, shape(K,)
+        radial mode number(s)
+    m : ndarray of int, shape(K,)
+        azimuthal mode number(s)
+    exact : bool
+        whether to return exact coefficients with `object` dtype
+        or return integer or floating point approximation
+
+    Returns
+    -------
+    coeffs : ndarray
+        Polynomial coefficients for Zernike polynomials, in descending powers of r.
+
+    Notes
+    -----
+    Integer representation is exact up to l~54, so leaving `exact` arg as False
+    can speed up evaluation with no loss in accuracy
+    """
+    l = np.atleast_1d(l).astype(int)
+    m = np.atleast_1d(np.abs(m)).astype(int)
+    lm = np.vstack([l, m]).T
+    # for modest to large arrays, faster to find unique values and
+    # only evaluate those
+    lms, idx = np.unique(lm, return_inverse=True, axis=0)
+
+    npoly = len(lms)
+    lmax = np.max(lms[:, 0])
+    coeffs = np.zeros((npoly, lmax + 1), dtype=object)
+    lm_even = ((lms[:, 0] - lms[:, 1]) % 2 == 0)[:, np.newaxis]
+    for ii in range(npoly):
+        ll = lms[ii, 0]
+        mm = lms[ii, 1]
+        for s in range(mm, ll + 1, 2):
+            coeffs[ii, s] = (
+                (-1) ** ((ll - s) // 2)
+                * factorial((ll + s) // 2)
+                // (
+                    factorial((ll - s) // 2)
+                    * factorial((s + mm) // 2)
+                    * factorial((s - mm) // 2)
+                )
+            )
+    c = np.fliplr(np.where(lm_even, coeffs, 0))
+    if not exact:
+        try:
+            c = c.astype(int)
+        except OverflowError:
+            c = c.astype(float)
+    c = c[idx]
+    return c
+
+
+def zernike_radial_poly(r, l, m, dr=0, exact="auto"):
+    """Radial part of zernike polynomials.
+
+    Evaluates basis functions using numpy to
+    exactly compute the polynomial coefficients
+    and Horner's method for low resolution,
+    or extended precision arithmetic for high resolution.
+    Faster for low resolution, but not differentiable.
+
+    Parameters
+    ----------
+    r : ndarray, shape(N,)
+        radial coordinates to evaluate basis
+    l : ndarray of int, shape(K,)
+        radial mode number(s)
+    m : ndarray of int, shape(K,)
+        azimuthal mode number(s)
+    dr : int
+        order of derivative (Default = 0)
+    exact : {"auto", True, False}
+        Whether to use exact/extended precision arithmetic. Slower but more accurate.
+        "auto" will use higher accuracy when needed.
+
+    Returns
+    -------
+    y : ndarray, shape(N,K)
+        basis function(s) evaluated at specified points
+
+    """
+    if exact == "auto":
+        exact = np.max(l) > 54
+    if exact:
+        # this should give accuracy of ~1e-10 in the eval'd polynomials
+        lmax = np.max(l)
+        prec = int(0.4 * lmax + 8.4)
+    else:
+        prec = None
+    coeffs = zernike_radial_coeffs(l, m, exact=exact)
+    coeffs = polyder_vec(coeffs, dr, exact=exact)
+    return polyval_vec(coeffs, r, prec=prec).T
+
+
+def polyder_vec(p, m, exact=False):
+    """Vectorized version of polyder.
+
+    For differentiating multiple polynomials of the same degree
+
+    Parameters
+    ----------
+    p : ndarray, shape(N,M)
+        polynomial coefficients. Each row is 1 polynomial, in descending powers of x,
+        each column is a power of x
+    m : int >=0
+        order of derivative
+    exact : bool
+        Whether to use exact integer arithmetic (not compatible with JAX, but may be
+        needed for very high degree polynomials)
+
+    Returns
+    -------
+    der : ndarray, shape(N,M)
+        polynomial coefficients for derivative in descending order
+
+    """
+    if exact:
+        return _polyder_exact(p, m)
+    else:
+        return _polyder_jax(p, m)
+
+
+def _polyder_exact(p, m):
+    factorial = np.math.factorial
+    m = np.asarray(m, dtype=int)  # order of derivative
+    p = np.atleast_2d(p)
+    order = p.shape[1] - 1
+
+    D = np.arange(order, -1, -1)
+    num = np.array([factorial(i) for i in D], dtype=object)
+    den = np.array([factorial(max(i - m, 0)) for i in D], dtype=object)
+    D = (num // den).astype(p.dtype)
+
+    p = np.roll(D * p, m, axis=1)
+    idx = np.arange(p.shape[1])
+    p = np.where(idx < m, 0, p)
+    return p
+
+
+@jax.jit
+def _polyder_jax(p, m):
+    p = jnp.atleast_2d(p)
+    m = jnp.asarray(m).astype(int)
+    order = p.shape[1] - 1
+    D = jnp.arange(order, -1, -1)
+
+    def body(i, Di):
+        return Di * jnp.maximum(D - i, 1)
+
+    D = fori_loop(0, m, body, jnp.ones_like(D))
+
+    p = jnp.roll(D * p, m, axis=1)
+    idx = jnp.arange(p.shape[1])
+    p = jnp.where(idx < m, 0, p)
+
+    return p
+
+
+def polyval_vec(p, x, prec=None):
+    """Evaluate a polynomial at specific values.
+
+    Vectorized for evaluating multiple polynomials of the same degree.
+
+    Parameters
+    ----------
+    p : ndarray, shape(N,M)
+        Array of coefficient for N polynomials of order M.
+        Each row is one polynomial, given in descending powers of x.
+    x : ndarray, shape(K,)
+        A number, or 1d array of numbers at
+        which to evaluate p. If greater than 1d it is flattened.
+    prec : int, optional
+        precision to use, in number of decimal places. Default is
+        double precision (~16 decimals) which should be enough for
+        most cases with L <= 24
+
+    Returns
+    -------
+    y : ndarray, shape(N,K)
+        polynomials evaluated at x.
+        Each row corresponds to a polynomial, each column to a value of x
+
+    """
+    if prec is not None and prec > 18:
+        return _polyval_exact(p, x, prec)
+    else:
+        return _polyval_jax(p, x)
+
+
+def _polyval_exact(p, x, prec):
+    p = np.atleast_2d(p)
+    x = np.atleast_1d(x).flatten()
+    # TODO: possibly multithread this bit
+    mpmath.mp.dps = prec
+    y = np.array([np.asarray(mpmath.polyval(list(pi), x)) for pi in p])
+    return y.astype(float)
+
+
+@jax.jit
+def _polyval_jax(p, x):
+    p = jnp.atleast_2d(p)
+    x = jnp.atleast_1d(x).flatten()
+    npoly = p.shape[0]  # number of polynomials
+    order = p.shape[1]  # order of polynomials
+    nx = len(x)  # number of coordinates
+    y = jnp.zeros((npoly, nx))
+
+    def body(k, y):
+        return y * x + jnp.atleast_2d(p[:, k]).T
+
+    y = fori_loop(0, order, body, y)
+
+    return y.astype(float)
