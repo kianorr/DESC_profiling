@@ -8,6 +8,8 @@ class _PratasMethod(ABC):
     """
     Base class for using Prata's method following Singh's paper.
 
+    Our `l` and `m` are equivalent to Singh's `p` and `q`, respectively.
+
     Attributes
     ----------
     R: `dict`
@@ -16,11 +18,13 @@ class _PratasMethod(ABC):
 
     def __init__(self):
         """Init for base class."""
+        # TODO: add l, m as attributes
         self.R = {}
         self.R[0] = None
         self.R[1] = None
         self.R[2] = None
         self.R[3] = None
+        self.R[4] = None
 
     @abstractmethod
     def initial_condition(self, r, l_i):
