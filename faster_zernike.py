@@ -12,10 +12,12 @@ def zernike_direct_eval(r):
     R["31"] = 3 * r**3 - 2 * r
     R["20"] = 2 * r**2 - 1
     R["40"] = 6 * r**4 - 6 * r**2 + 1
+    R["50"] = 5
     return R
 
 
 def possible_zernike_polynomials():
+    """Finds the possible l and m values."""
     pass
 
 
