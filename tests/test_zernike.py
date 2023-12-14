@@ -20,36 +20,36 @@ def test_zernike_radial_prata():
     specific_l = 2
     specific_m = 0
 
-    f = FourthDerivative()
+    f = FourthDerivative(r, l)
     # calculates all polynomials since it's fourth derivative
-    f.zernike_radial_prata(r, l)
+    f.zernike_radial_prata()
 
     # zeroth derivative
-    x = ZerothDerivative().zernike_radial_analytical(r)
+    x = ZerothDerivative(r, l).zernike_radial_analytical()
     zernike_analytical = x[str(specific_l) + str(specific_m)]
-    zernike_computed = f.R[0][specific_l, specific_m]
+    zernike_computed = f.get_zeroth_derivative()[specific_l, specific_m]
     np.testing.assert_allclose(zernike_analytical, zernike_computed, rtol=1e-3)
 
     # first derivative
-    x = FirstDerivative().zernike_radial_analytical(r)
+    x = FirstDerivative(r, l).zernike_radial_analytical()
     zernike_analytical = x[str(specific_l) + str(specific_m)]
-    zernike_computed = f.R[1][specific_l, specific_m]
+    zernike_computed = f.get_first_derivative()[specific_l, specific_m]
     np.testing.assert_allclose(zernike_analytical, zernike_computed, rtol=1e-3)
 
     # second derivative
-    x = SecondDerivative().zernike_radial_analytical(r)
+    x = SecondDerivative(r, l).zernike_radial_analytical()
     zernike_analytical = x[str(specific_l) + str(specific_m)]
-    zernike_computed = f.R[2][specific_l, specific_m]
+    zernike_computed = f.get_second_derivative()[specific_l, specific_m]
     np.testing.assert_allclose(zernike_analytical, zernike_computed, rtol=1e-3)
 
     # third derivative
-    x = ThirdDerivative().zernike_radial_analytical(r)
+    x = ThirdDerivative(r, l).zernike_radial_analytical()
     zernike_analytical = x[str(specific_l) + str(specific_m)]
-    zernike_computed = f.R[3][specific_l, specific_m]
+    zernike_computed = f.get_third_derivative()[specific_l, specific_m]
     np.testing.assert_allclose(zernike_analytical, zernike_computed, rtol=1e-3)
 
     # fourth derivative
-    x = FourthDerivative().zernike_radial_analytical(r)
+    x = FourthDerivative(r, l).zernike_radial_analytical()
     zernike_analytical = x[str(specific_l) + str(specific_m)]
-    zernike_computed = f.R[4][specific_l, specific_m]
+    zernike_computed = f.get_fourth_derivative()[specific_l, specific_m]
     np.testing.assert_allclose(zernike_analytical, zernike_computed, rtol=1e-3)
