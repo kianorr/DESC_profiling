@@ -12,12 +12,15 @@ class _PratasMethod(ABC):
     """
     Base class for using Prata's method following Singh's paper.
 
-    Our `l` and `m` are equivalent to Singh's `p` and `q`, respectively.
-
     Attributes
     ----------
     R: `dict`
         Dictionary of numpy arrays for each derivative.
+
+    Notes
+    -----
+    Our `l` and `m` are equivalent to Singh's `p` and `q`, respectively.
+    https://doi.org/10.1016/j.patcog.2010.02.005
     """
 
     def __init__(self, r: FArray, l: IArray):
