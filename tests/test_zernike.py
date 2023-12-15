@@ -1,7 +1,7 @@
 """Tests for zernike."""
 import numpy as np
 
-from ..faster_zernike import (
+from ..zernike_prata import (
     ZerothDerivative,
     FirstDerivative,
     SecondDerivative,
