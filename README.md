@@ -1,14 +1,5 @@
 # DESC_profiling
 
-## Goals
-1. To profile the current performance of DESC for the calculation of a three-dimensional plasma equilibrium using GPUs and CPUs.
+Report: https://www.overleaf.com/project/6574b33f8f7d5a7d06fc0caf
 
-2. To identify the most computationally expensive processes executed by JAX in DESC in terms of
-memory and run time
-    - singular_integral
-    - zernike polynomials
-
-3. To investigate optimizations into DESC based on the previously identified expensive processes
-    - direct evaluation of zernike polynomials instead of jacobi polynomials
-
-4. To investigate the effect of using GPU versus CPU for different functionalities of DESC
+Slides: https://docs.google.com/presentation/d/1HCfL59L-3YUY-wgK7dwDX2T6kGGw5Py3IS9pznMDpJg/edit#slide=id.g2a76740436d_0_4

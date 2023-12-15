@@ -102,18 +102,19 @@ class ZerothDerivative(_PratasMethod):
         """Inherits base class."""
         # TODO: implement self._dr instead of inputting dr manually
         super().__init__(r, l)
+        self.__dr = 0
 
     def initial_condition(self, l_i):
         """Calculates initial condition (l_i = m_i) for 0th derivative."""
-        self.R[0][l_i, l_i] = self._r**l_i
+        self.R[self.__dr][l_i, l_i] = self._r**l_i
 
     def main_recurrence(self, K_1, K_2, l_i, m_i):
         """Calculates main recurring with specification of derivative."""
-        super().calc_main_recurrence(K_1, K_2, l_i, m_i, dr=0)
+        super().calc_main_recurrence(K_1, K_2, l_i, m_i, dr=self.__dr)
 
     def get_zeroth_derivative(self):
         """Getter."""
-        return self.R[0]
+        return self.R[self.__dr]
 
     def zernike_radial_analytical(self):
         """Calculate analytical expression for 0th derivative.
@@ -135,11 +136,12 @@ class FirstDerivative(ZerothDerivative):
     def __init__(self, r, l):
         """Inherits zeroth derivative."""
         super().__init__(r, l)
+        self.__dr = 1
 
     def initial_condition(self, l_i):
         """Calculates initial condition (l_i = m_i) for 1st derivative."""
         super().initial_condition(l_i)
-        self.R[1][l_i, l_i] = l_i * self._r ** (l_i - 1)
+        self.R[self.__dr][l_i, l_i] = l_i * self._r ** (l_i - 1)
 
     def main_recurrence(self, K_1, K_2, l_i, m_i):
         """Calculates main recurring with specification of derivative."""
@@ -148,7 +150,7 @@ class FirstDerivative(ZerothDerivative):
 
     def get_first_derivative(self):
         """Getter."""
-        return self.R[1]
+        return self.R[self.__dr]
 
     def zernike_radial_analytical(self):
         """Calculate analytical expression for 3rd derivative."""
@@ -167,11 +169,12 @@ class SecondDerivative(FirstDerivative):
     def __init__(self, r, l):
         """Inherits first derivative."""
         super().__init__(r, l)
+        self.__dr = 2
 
     def initial_condition(self, l_i):
         """Calculates initial condition (l_i = m_i) for 2nd derivative."""
         super().initial_condition(l_i)
-        self.R[2][l_i, l_i] = l_i * (l_i - 1) * self._r ** (l_i - 2)
+        self.R[self.__dr][l_i, l_i] = l_i * (l_i - 1) * self._r ** (l_i - 2)
 
     def main_recurrence(self, K_1, K_2, l_i, m_i):
         """Calculates main recurring with specification of derivative."""
@@ -180,7 +183,7 @@ class SecondDerivative(FirstDerivative):
 
     def get_second_derivative(self):
         """Getter."""
-        return self.R[2]
+        return self.R[self.__dr]
 
     def zernike_radial_analytical(self):
         """Calculate analytical expression for 2nd derivative."""
@@ -199,20 +202,21 @@ class ThirdDerivative(SecondDerivative):
     def __init__(self, r, l):
         """Inherits second derivative."""
         super().__init__(r, l)
+        self.__dr = 3
 
     def initial_condition(self, l_i):
         """Calculates initial condition (l_i = m_i) for 3rd derivative."""
         super().initial_condition(l_i)
-        self.R[3][l_i, l_i] = l_i * (l_i - 1) * (l_i - 2) * self._r ** (l_i - 3)
+        self.R[self.__dr][l_i, l_i] = l_i * (l_i - 1) * (l_i - 2) * self._r ** (l_i - 3)
 
     def main_recurrence(self, K_1, K_2, l_i, m_i):
         """Calculates main recurring with specification of derivative."""
         super().main_recurrence(K_1, K_2, l_i, m_i)
-        super().calc_main_recurrence(K_1, K_2, l_i, m_i, dr=3)
+        super().calc_main_recurrence(K_1, K_2, l_i, m_i, dr=self.__dr)
 
     def get_third_derivative(self):
         """Getter."""
-        return self.R[3]
+        return self.R[self.__dr]
 
     def zernike_radial_analytical(self):
         """Calculate analytical expression for 3rd derivative."""
@@ -231,20 +235,21 @@ class FourthDerivative(ThirdDerivative):
     def __init__(self, r, l):
         """Inherits third derivative."""
         super().__init__(r, l)
+        self.__dr = 4
 
     def initial_condition(self, l_i):
         """Calculates initial condition (l_i = m_i) for 3rd derivative."""
         super().initial_condition(l_i)
-        self.R[4][l_i, l_i] = l_i * (l_i - 1) * (l_i - 2) * self._r ** (l_i - 3)
+        self.R[self.__dr][l_i, l_i] = l_i * (l_i - 1) * (l_i - 2) * self._r ** (l_i - 3)
 
     def main_recurrence(self, K_1, K_2, l_i, m_i):
         """Calculates main recurring with specification of derivative."""
         super().main_recurrence(K_1, K_2, l_i, m_i)
-        super().calc_main_recurrence(K_1, K_2, l_i, m_i, dr=4)
+        super().calc_main_recurrence(K_1, K_2, l_i, m_i, dr=self.__dr)
 
     def get_fourth_derivative(self):
         """Getter."""
-        return self.R[4]
+        return self.R[self.__dr]
 
     def zernike_radial_analytical(self):
         """Calculate analytical expression for 4th derivative."""
