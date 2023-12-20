@@ -577,7 +577,7 @@ def _jacobi(n, alpha, beta, x, dx=0):
     return c * out
 
 
-def zernike_radial_optimized(x, l, m, beta=0):
+def zernike_radial_optimized_jit(x, l, m, beta=0):
     """Radial part of zernike polynomials.
 
     Evaluates basis functions using JAX and a stable
@@ -628,7 +628,7 @@ def zernike_radial_optimized(x, l, m, beta=0):
     init = np.zeros((len(m), len(x)))
 
     # Broadcasting is used for element-wise operations
-    result = zernike_radial_update(x, n_opt, m_opt, beta, init)
+    result = zernike_radial_update_jit(x, n_opt, m_opt, beta, init)
     result = np.transpose(result)
     result = np.where((l - m) % 2 == 0, result, 0)
     result = result[:, np.argsort(id0)]
@@ -637,7 +637,7 @@ def zernike_radial_optimized(x, l, m, beta=0):
 
 
 @jax.jit
-def zernike_radial_update(x, n, alpha, beta, result):
+def zernike_radial_update_jit(x, n, alpha, beta, result):
     """Calculate the radial part of Zernike polynomial at points x.
 
     Parameters
@@ -660,7 +660,7 @@ def zernike_radial_update(x, n, alpha, beta, result):
 
     def body(N, args):
         xj, alpha, beta, power, result, P_n1, P_n2, index = args
-        P_n = jacobi_poly_single(xj, N, alpha, beta, P_n1, P_n2)
+        P_n = jacobi_poly_single_jit(xj, N, alpha, beta, P_n1, P_n2)
         result = result.at[index, :].set(jnp.array((-1) ** N * power * P_n))
         index += 1
         P_n2 = P_n1
@@ -671,8 +671,8 @@ def zernike_radial_update(x, n, alpha, beta, result):
     index = 0
     for i in range(alpha.size):
         m = alpha[i]
-        P_n1 = jacobi_poly_single(xj, 1, m, beta)
-        P_n2 = jacobi_poly_single(xj, 0, m, beta)
+        P_n1 = jacobi_poly_single_jit(xj, 1, m, beta)
+        P_n2 = jacobi_poly_single_jit(xj, 0, m, beta)
         power = x**m
         result = result.at[index, :].set(jnp.array((-1) ** 0 * power * P_n2))
         index += 1
@@ -686,7 +686,7 @@ def zernike_radial_update(x, n, alpha, beta, result):
     return result
 
 
-def jacobi_poly_single(x, n, alpha, beta, P_n1=0, P_n2=0):
+def jacobi_poly_single_jit(x, n, alpha, beta, P_n1=0, P_n2=0):
     """Evaluate Jacobi for single alpha and n pair."""
     c = 2 * n + alpha + beta
     a1 = 2 * n * (c - n) * (c - 2)
