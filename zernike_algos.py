@@ -577,6 +577,122 @@ def _jacobi(n, alpha, beta, x, dx=0):
     return c * out
 
 
+def zernike_radial_optimized(x, l, m, beta=0):
+    """Radial part of zernike polynomials.
+
+    Evaluates basis functions using JAX and a stable
+    evaluation scheme based on jacobi polynomials and
+    binomial coefficients. Generally faster for L>24
+    and differentiable, but slower for low resolution.
+
+    Parameters
+    ----------
+    r : ndarray, shape(N,)
+        radial coordinates to evaluate basis
+    l : ndarray of int, shape(K,)
+        radial mode number(s)
+    m : ndarray of int, shape(K,)
+        azimuthal mode number(s)
+    dr : int
+        order of derivative (Default = 0)
+
+    Returns
+    -------
+    y : ndarray, shape(N,K)
+        basis function(s) evaluated at specified points
+
+    """
+    m = np.abs(m)
+    n = (l - m) // 2
+    idx = np.lexsort((n, m))
+    id0 = np.arange(0, len(l))
+    id0 = id0[idx]
+
+    l = l[idx]
+    m = m[idx]
+    n = n[idx]
+
+    unique_values = np.unique(m)
+    opt_param = []
+    # For each unique value, find the maximum value in array2 where
+    # this value occurs in array1
+    for value in unique_values:
+        indices = np.where(m == value)
+        max_n = np.max(n[indices])
+        opt_param.append(np.array([value, max_n]))
+    opt_param = np.array(opt_param)
+    m_opt = opt_param[:, 0]
+    n_opt = opt_param[:, 1]
+
+    # if we use JAX in future, this might becoma handy
+    init = np.zeros((len(m), len(x)))
+
+    # Broadcasting is used for element-wise operations
+    result = zernike_radial_update(x, n_opt, m_opt, beta, init)
+    result = np.where((l - m) % 2 == 0, result, 0)
+    result = result[:, np.argsort(id0)]
+
+    return result
+
+
+def zernike_radial_update(x, n, alpha, beta, result):
+    """Calculate the radial part of Zernike polynomial at points x.
+
+    Parameters
+    ----------
+    x : array-like
+        Points where the Jacobi polynomial is evaluated.
+    n : array-like
+        Degree of the Jacobi polynomial.
+    alpha : array-like
+        Alpha parameter of the Jacobi polynomial.
+    beta : array-like
+        Beta parameter of the Jacobi polynomial.
+
+    Returns
+    -------
+    result : array
+        Values of the Zernike polynomial at points x.
+
+    """
+    xj = 1 - 2 * x**2
+    index = 0
+    for i in range(len(alpha)):
+        P_n1 = jacobi_poly_single(xj, 1, alpha[i], beta)
+        P_n2 = jacobi_poly_single(xj, 0, alpha[i], beta)
+        power = x ** alpha[i]
+        result[index, :] = np.array((-1) ** 0 * power * P_n2)
+        index += 1
+        if n[i] >= 1:
+            result[index, :] = np.array((-1) ** 1 * power * P_n1)
+            index += 1
+        if n[i] >= 2:
+            for N in range(2, n[i] + 1):
+                P_n = jacobi_poly_single(xj, N, alpha[i], beta, P_n1, P_n2)
+                result[index, :] = np.array((-1) ** N * power * P_n)
+                index += 1
+                P_n2 = P_n1
+                P_n1 = P_n
+    return np.transpose(result)
+
+
+def jacobi_poly_single(x, n, alpha, beta, P_n1=0, P_n2=0):
+    """Evaluate Jacobi for single alpha and n pair."""
+    if n == 0:
+        return np.ones_like(x)
+    elif n == 1:
+        return (alpha + 1) + (alpha + beta + 2) * (x - 1) / 2
+    else:
+        c = 2 * n + alpha + beta
+        a1 = 2 * n * (c - n) * (c - 2)
+        a2 = (c - 1) * (c * (c - 2) * x + (alpha - beta) * (alpha + beta))
+        a3 = 2 * (n + alpha - 1) * (n + beta - 1) * c
+
+        P_n = (a2 * P_n1 - a3 * P_n2) / a1
+
+        return P_n
+    
+
 def zernike_radial_optimized_jit(x, l, m, beta=0):
     """Radial part of zernike polynomials.
 
