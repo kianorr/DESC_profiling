@@ -746,7 +746,7 @@ def zernike_radial_optimized_jit(x, l, m, beta=0):
     # Broadcasting is used for element-wise operations
     result = zernike_radial_update_jit(x, n_opt, m_opt, beta, init)
     result = np.transpose(result)
-    result = np.where((l - m) % 2 == 0, result, 0)
+    # # result = np.where((l - m) % 2 == 0, result, 0)
     result = result[:, np.argsort(id0)]
 
     return result
@@ -777,7 +777,7 @@ def zernike_radial_update_jit(x, n, alpha, beta, result):
     def body(N, args):
         xj, alpha, beta, power, result, P_n1, P_n2, index = args
         P_n = jacobi_poly_single_jit(xj, N, alpha, beta, P_n1, P_n2)
-        result = result.at[index, :].set(jnp.array((-1) ** N * power * P_n))
+        result = result.at[index, :].set((-1) ** N * power * P_n)
         index += 1
         P_n2 = P_n1
         P_n1 = P_n
@@ -790,7 +790,7 @@ def zernike_radial_update_jit(x, n, alpha, beta, result):
         P_n1 = jacobi_poly_single_jit(xj, 1, m, beta)
         P_n2 = jacobi_poly_single_jit(xj, 0, m, beta)
         power = x**m
-        result = result.at[index, :].set(jnp.array((-1) ** 0 * power * P_n2))
+        result = result.at[index, :].set(power * P_n2)
         index += 1
         xj, m, beta, power, result, P_n1, P_n2, index = fori_loop(
             1,
